@@ -22,9 +22,10 @@ const ClassifyInvoiceChargesInputSchema = z.object({
 });
 export type ClassifyInvoiceChargesInput = z.infer<typeof ClassifyInvoiceChargesInputSchema>;
 
+// Adjusted output schema to handle potentially missing or non-numeric values gracefully
 const ClassifyInvoiceChargesOutputSchema = z.object({
-  cargomenOwnCharges: z.number().describe('The sum of strictly "SERVICE CHARGES", "LOADING & UNLOADING CHARGES", and "TRANSPORTATION".'),
-  reimbursementCharges: z.number().describe('The sum of all other charges (excluding taxes) not classified as Cargomen Own Charges.'),
+  cargomenOwnCharges: z.number().describe('The sum of strictly "SERVICE CHARGES", "LOADING & UNLOADING CHARGES", and "TRANSPORTATION".').optional().default(0),
+  reimbursementCharges: z.number().describe('The sum of all other charges (excluding taxes) not classified as Cargomen Own Charges.').optional().default(0),
 });
 export type ClassifyInvoiceChargesOutput = z.infer<typeof ClassifyInvoiceChargesOutputSchema>;
 
@@ -41,43 +42,68 @@ const classifyInvoiceChargesPrompt = ai.definePrompt({
     schema: ClassifyInvoiceChargesInputSchema,
   },
   output: {
+    // Output schema expects numbers, handling parsing in the flow
     schema: ClassifyInvoiceChargesOutputSchema,
   },
-  // Refined prompt for stricter classification based on user feedback
-  prompt: `You are an expert invoice processing specialist for Cargomen. Your task is to meticulously analyze the provided invoice document and classify each charge listed into ONLY one of two categories based on these VERY SPECIFIC rules:
+  // Further refined prompt for stricter classification and calculation
+  prompt: `You are an expert invoice processing specialist for Cargomen. Your task is to meticulously analyze the charge breakdown section of the provided invoice document and classify each individual charge line item into ONLY one of two categories based on these VERY SPECIFIC rules:
 
-  1.  **Cargomen Own Charges**: These are fees ONLY for the following specific services performed by Cargomen. Sum the amounts ONLY for line items with descriptions EXACTLY matching (or very close variations like pluralization) these phrases:
+  **Definitions:**
+  1.  **Cargomen Own Charges**: These are fees ONLY for the following specific services performed directly by Cargomen. Sum the amounts ONLY for line items with descriptions EXACTLY matching (case-insensitive, allow for pluralization like 'CHARGE' vs 'CHARGES') these phrases:
       *   SERVICE CHARGES (or AGENCY SERVICE CHARGES)
       *   LOADING & UNLOADING CHARGES
       *   TRANSPORTATION (or CARTAGE CHARGES)
 
-  2.  **Reimbursement Charges**: These are ALL OTHER costs listed on the invoice that are NOT "SERVICE CHARGES", "LOADING & UNLOADING CHARGES", or "TRANSPORTATION". This includes, but is not limited to:
+  2.  **Reimbursement Charges**: These are ALL OTHER costs listed as individual line items in the charge breakdown section that are NOT one of the three specific "Cargomen Own Charges" listed above. This includes, but is not limited to:
       *   Custodian Charges (e.g., DELHICARGOSERVICE-CUSTODIAN CHARGES, AAI charges)
       *   DO (Delivery Order) Charges / Airline DO Charges
       *   Airline Terminal Handling Charges / Ground Handling Charges (e.g., Celebi, IGIA)
       *   Airport Operator Charges
       *   Storage Charges / Demurrage Charges
-      *   Statutory charges (e.g., Customs Duty, IGST - when listed as a line item cost paid on behalf, not the tax calculated on the total)
-      *   Handling Charges / Agency Handling Charges (NOTE: These are NOT Own Charges unless explicitly listed as Loading/Unloading)
+      *   Statutory charges (e.g., Customs Duty, IGST - ONLY when listed as a specific line item cost paid on behalf, NOT the final tax calculation on the total)
+      *   Handling Charges / Agency Handling Charges (NOTE: These are NOT Own Charges unless explicitly described as Loading/Unloading or Transportation/Cartage)
       *   Documentation Fees
       *   Processing Fees
       *   EDI Charges
-      *   Any other third-party vendor charges clearly indicated as passed through (e.g., specific vendor names).
+      *   Any other third-party vendor charges clearly indicated as passed through (e.g., specific vendor names mentioned in the description).
 
-  Analyze the following invoice document **extremely carefully**. Examine each line item's description and amount.
+  **Instructions:**
+  Analyze the following invoice document **extremely carefully**. Go line by line through the charges listed (usually in a table format).
 
-  *   If a line item's description matches one of the three specific descriptions for **Cargomen Own Charges**, add its base amount to the \`cargomenOwnCharges\` sum.
-  *   If a line item's description does NOT match one of those three, add its base amount to the \`reimbursementCharges\` sum.
+  *   For each line item:
+      *   Examine its description.
+      *   If the description EXACTLY matches one of the three specific phrases for **Cargomen Own Charges** (case-insensitive, allowing pluralization), add its corresponding base amount (the value listed for that line item *before* any taxes like GST/CGST/SGST are applied) to the \`cargomenOwnCharges\` sum.
+      *   If the line item description does NOT match one of those three specific phrases, add its corresponding base amount to the \`reimbursementCharges\` sum.
 
-  **Crucially, sum up the monetary values ONLY for the items you classify in each category.**
+  **CRITICAL:**
+  *   **DO NOT include overall taxes** (like GST, CGST, SGST) that are calculated on the *subtotal* or *total* of the invoice in EITHER category. Only sum the amounts listed for the individual charge line items themselves.
+  *   Be precise. Only the three explicitly mentioned descriptions count as 'Own Charges'. Everything else listed as a distinct charge line item is a 'Reimbursement Charge'.
+  *   Double-check your classifications against the strict rules above and ensure your arithmetic sums are accurate.
+  *   Return 0 for a category if no matching charges are found.
+  *   Ensure the output values are valid JSON numbers, not strings or formatted currency.
 
   Invoice Document:
   {{media url=invoicePdfDataUri}}
 
-  Provide the *total sum* for Cargomen Own Charges and the *total sum* for Reimbursement Charges as a JSON object matching the output schema. Double-check your classifications against the strict rules above and your calculations for accuracy. **Do NOT include taxes like GST/CGST/SGST applied *on top* of these charges in either sum; focus only on the base charge amounts listed in the line items before tax calculation.**
+  Provide the final *total sum* for \`cargomenOwnCharges\` and the final *total sum* for \`reimbursementCharges\` as a JSON object matching the output schema. Example: {"cargomenOwnCharges": 1500.00, "reimbursementCharges": 2550.50}
   `,
 });
 
+
+// Utility function to safely parse potential number strings
+function parseChargeValue(value: any): number {
+  if (typeof value === 'number') {
+    return isNaN(value) ? 0 : value;
+  }
+  if (typeof value === 'string') {
+    // Remove currency symbols, commas, and extraneous characters, keep decimal point and negative sign
+    const cleanedValue = value.replace(/[^0-9.-]+/g, "");
+    const number = parseFloat(cleanedValue);
+    return isNaN(number) ? 0 : number;
+  }
+  // If it's not a number or a string, return 0
+  return 0;
+}
 
 const classifyInvoiceChargesFlow = ai.defineFlow<
   typeof ClassifyInvoiceChargesInputSchema,
@@ -89,28 +115,25 @@ const classifyInvoiceChargesFlow = ai.defineFlow<
     outputSchema: ClassifyInvoiceChargesOutputSchema,
   },
   async input => {
-    // Pass the input directly to the prompt (which includes the data URI)
     console.log("Calling classifyInvoiceChargesPrompt with PDF data URI...");
-    const {output} = await classifyInvoiceChargesPrompt(input);
-    console.log("Received output from classifyInvoiceChargesPrompt:", output);
+    const { output } = await classifyInvoiceChargesPrompt(input);
+    console.log("Received raw output from classifyInvoiceChargesPrompt:", output);
+
     if (!output) {
-        throw new Error("AI failed to classify charges. No output received.");
+        console.error("AI failed to classify charges. No output received. Returning zero charges.");
+        return { cargomenOwnCharges: 0, reimbursementCharges: 0 }; // Return default zero values
     }
-     if (typeof output.cargomenOwnCharges !== 'number' || typeof output.reimbursementCharges !== 'number') {
-        console.error("Invalid output format from AI:", output);
-        // Attempt to parse if they are strings that look like numbers
-        const ownCharges = typeof output.cargomenOwnCharges === 'string' ? parseFloat(output.cargomenOwnCharges) : output.cargomenOwnCharges;
-        const reimbCharges = typeof output.reimbursementCharges === 'string' ? parseFloat(output.reimbursementCharges) : output.reimbursementCharges;
 
-        if (isNaN(ownCharges) || isNaN(reimbCharges)) {
-           throw new Error("AI returned invalid data format for charges and could not parse numbers.");
-        }
-        console.warn("AI returned charges as strings, parsed successfully.");
-        return { cargomenOwnCharges: ownCharges, reimbursementCharges: reimbCharges };
+    // Safely parse the output values
+    const ownCharges = parseChargeValue(output.cargomenOwnCharges);
+    const reimbCharges = parseChargeValue(output.reimbursementCharges);
 
-        // If strict number type is required, uncomment the line below and remove the parsing logic above
-        // throw new Error("AI returned invalid data format for charges.");
-    }
-    return output;
+    console.log(`Parsed charges - Own: ${ownCharges}, Reimbursement: ${reimbCharges}`);
+
+    // Ensure the final return object matches the schema (even if parsing failed and returned 0)
+    return {
+        cargomenOwnCharges: ownCharges,
+        reimbursementCharges: reimbCharges
+    };
   }
 );
