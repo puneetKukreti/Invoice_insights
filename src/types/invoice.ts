@@ -14,9 +14,9 @@ export interface ExtractedData {
   termsOfInvoice: string;
   /** The job or project number related to the invoice. */
   jobNumber: string;
-  /** The calculated sum of charges directly related to Cargomen's services. */
+  /** The calculated sum of charges (including tax) directly related to Cargomen's services. */
   cargomenOwnCharges: number;
-  /** The calculated sum of charges paid to third parties and reimbursed by the customer. */
+  /** The calculated sum of charges (including tax) paid to third parties and reimbursed by the customer. */
   reimbursementCharges: number;
   /** The name of the original PDF file from which the data was extracted. */
   filename?: string; // Optional filename property

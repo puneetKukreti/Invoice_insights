@@ -2,7 +2,7 @@
 'use server';
 
 /**
- * @fileOverview Classifies invoice charges into 'Cargomen Own Charges' and 'Reimbursement Charges' directly from an invoice PDF.
+ * @fileOverview Classifies invoice charges into 'Cargomen Own Charges' and 'Reimbursement Charges' directly from an invoice PDF, summing the total amounts including tax.
  *
  * - classifyInvoiceCharges - A function that classifies invoice charges from a PDF data URI.
  * - ClassifyInvoiceChargesInput - The input type for the classifyInvoiceCharges function.
@@ -22,10 +22,10 @@ const ClassifyInvoiceChargesInputSchema = z.object({
 });
 export type ClassifyInvoiceChargesInput = z.infer<typeof ClassifyInvoiceChargesInputSchema>;
 
-// Adjusted output schema to handle potentially missing or non-numeric values gracefully
+// Adjusted output schema descriptions to reflect inclusion of tax
 const ClassifyInvoiceChargesOutputSchema = z.object({
-  cargomenOwnCharges: z.number().describe('The sum of strictly "SERVICE CHARGES", "LOADING & UNLOADING CHARGES", and "TRANSPORTATION".').optional().default(0),
-  reimbursementCharges: z.number().describe('The sum of all other charges (excluding taxes) not classified as Cargomen Own Charges.').optional().default(0),
+  cargomenOwnCharges: z.number().describe('The sum of the "Total (INR)" values (including tax) for strictly "SERVICE CHARGES", "LOADING & UNLOADING CHARGES", and "TRANSPORTATION".').optional().default(0),
+  reimbursementCharges: z.number().describe('The sum of the "Total (INR)" values (including tax) for all other charges not classified as Cargomen Own Charges.').optional().default(0),
 });
 export type ClassifyInvoiceChargesOutput = z.infer<typeof ClassifyInvoiceChargesOutputSchema>;
 
@@ -45,11 +45,11 @@ const classifyInvoiceChargesPrompt = ai.definePrompt({
     // Output schema expects numbers, handling parsing in the flow
     schema: ClassifyInvoiceChargesOutputSchema,
   },
-  // Further refined prompt for stricter classification and calculation
-  prompt: `You are an expert invoice processing specialist for Cargomen. Your task is to meticulously analyze the charge breakdown section of the provided invoice document and classify each individual charge line item into ONLY one of two categories based on these VERY SPECIFIC rules:
+  // Updated prompt to sum the "Total (INR)" column including tax
+  prompt: `You are an expert invoice processing specialist for Cargomen. Your task is to meticulously analyze the charge breakdown section (usually a table with columns like 'Description', 'Taxable Value', 'IGST', 'Total (INR)') of the provided invoice document. You need to classify each individual charge line item into ONLY one of two categories based on its description, and then sum the **Total (INR)** values (which include tax for that line item) for each category according to these VERY SPECIFIC rules:
 
   **Definitions:**
-  1.  **Cargomen Own Charges**: These are fees ONLY for the following specific services performed directly by Cargomen. Sum the amounts ONLY for line items with descriptions EXACTLY matching (case-insensitive, allow for pluralization like 'CHARGE' vs 'CHARGES') these phrases:
+  1.  **Cargomen Own Charges**: These are fees ONLY for the following specific services performed directly by Cargomen. Sum the amounts ONLY from the **"Total (INR)"** column for line items with descriptions EXACTLY matching (case-insensitive, allow for pluralization like 'CHARGE' vs 'CHARGES') these phrases:
       *   SERVICE CHARGES (or AGENCY SERVICE CHARGES)
       *   LOADING & UNLOADING CHARGES
       *   TRANSPORTATION (or CARTAGE CHARGES)
@@ -72,20 +72,21 @@ const classifyInvoiceChargesPrompt = ai.definePrompt({
 
   *   For each line item:
       *   Examine its description.
-      *   If the description EXACTLY matches one of the three specific phrases for **Cargomen Own Charges** (case-insensitive, allowing pluralization), add its corresponding base amount (the value listed for that line item *before* any taxes like GST/CGST/SGST are applied) to the \`cargomenOwnCharges\` sum.
-      *   If the line item description does NOT match one of those three specific phrases, add its corresponding base amount to the \`reimbursementCharges\` sum.
+      *   If the description EXACTLY matches one of the three specific phrases for **Cargomen Own Charges** (case-insensitive, allowing pluralization), add its corresponding **Total (INR)** amount (the final value listed for that line item *after* tax, usually in the rightmost amount column) to the \`cargomenOwnCharges\` sum.
+      *   If the line item description does NOT match one of those three specific phrases, add its corresponding **Total (INR)** amount to the \`reimbursementCharges\` sum.
 
   **CRITICAL:**
-  *   **DO NOT include overall taxes** (like GST, CGST, SGST) that are calculated on the *subtotal* or *total* of the invoice in EITHER category. Only sum the amounts listed for the individual charge line items themselves.
+  *   **Sum ONLY the "Total (INR)" values from the individual charge line items.**
+  *   **DO NOT include the overall invoice total or any overall tax amounts** (like final CGST, SGST, IGST) that are calculated on the *subtotal* or *grand total* of the invoice. Only sum the values found in the **"Total (INR)"** column (or equivalent final amount column) within the charge breakdown table itself.
   *   Be precise. Only the three explicitly mentioned descriptions count as 'Own Charges'. Everything else listed as a distinct charge line item is a 'Reimbursement Charge'.
-  *   Double-check your classifications against the strict rules above and ensure your arithmetic sums are accurate.
+  *   Double-check your classifications against the strict rules above and ensure your arithmetic sums using the **Total (INR)** values are accurate.
   *   Return 0 for a category if no matching charges are found.
   *   Ensure the output values are valid JSON numbers, not strings or formatted currency.
 
   Invoice Document:
   {{media url=invoicePdfDataUri}}
 
-  Provide the final *total sum* for \`cargomenOwnCharges\` and the final *total sum* for \`reimbursementCharges\` as a JSON object matching the output schema. Example: {"cargomenOwnCharges": 1500.00, "reimbursementCharges": 2550.50}
+  Provide the final *total sum* for \`cargomenOwnCharges\` and the final *total sum* for \`reimbursementCharges\` (both including the line item taxes) as a JSON object matching the output schema. Example: {"cargomenOwnCharges": 1750.00, "reimbursementCharges": 3000.50}
   `,
 });
 
@@ -115,7 +116,7 @@ const classifyInvoiceChargesFlow = ai.defineFlow<
     outputSchema: ClassifyInvoiceChargesOutputSchema,
   },
   async input => {
-    console.log("Calling classifyInvoiceChargesPrompt with PDF data URI...");
+    console.log("Calling classifyInvoiceChargesPrompt with PDF data URI (expecting total incl. tax)...");
     const { output } = await classifyInvoiceChargesPrompt(input);
     console.log("Received raw output from classifyInvoiceChargesPrompt:", output);
 
@@ -128,7 +129,7 @@ const classifyInvoiceChargesFlow = ai.defineFlow<
     const ownCharges = parseChargeValue(output.cargomenOwnCharges);
     const reimbCharges = parseChargeValue(output.reimbursementCharges);
 
-    console.log(`Parsed charges - Own: ${ownCharges}, Reimbursement: ${reimbCharges}`);
+    console.log(`Parsed charges (incl. tax) - Own: ${ownCharges}, Reimbursement: ${reimbCharges}`);
 
     // Ensure the final return object matches the schema (even if parsing failed and returned 0)
     return {

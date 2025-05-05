@@ -38,8 +38,8 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
         "HAWB No",
         "Terms of Invoice",
         "Job Number",
-        "Cargomen Own Charges",
-        "Reimbursement Charges",
+        "Cargomen Own Charges (Incl. Tax)", // Updated header
+        "Reimbursement Charges (Incl. Tax)", // Updated header
     ];
 
     // Map data to the desired format, ensuring order matches headers
@@ -49,8 +49,8 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
         "HAWB No": item.hawbNumber,
         "Terms of Invoice": item.termsOfInvoice,
         "Job Number": item.jobNumber,
-        "Cargomen Own Charges": item.cargomenOwnCharges,
-        "Reimbursement Charges": item.reimbursementCharges,
+        "Cargomen Own Charges (Incl. Tax)": item.cargomenOwnCharges, // Match header
+        "Reimbursement Charges (Incl. Tax)": item.reimbursementCharges, // Match header
     }));
 
 
@@ -90,8 +90,8 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
               <TableHead>HAWB No</TableHead>
               <TableHead>Terms</TableHead>
               <TableHead>Job No</TableHead>
-              <TableHead className="text-right">Own Charges</TableHead>
-              <TableHead className="text-right">Reimb. Charges</TableHead>
+              <TableHead className="text-right">Own Charges (Incl. Tax)</TableHead>
+              <TableHead className="text-right">Reimb. Charges (Incl. Tax)</TableHead>
               <TableHead>Source File</TableHead>
             </TableRow>
           </TableHeader>

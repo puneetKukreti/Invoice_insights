@@ -4,7 +4,7 @@
  * @fileOverview This file defines a Genkit flow for extracting data from Cargomen invoices.
  *
  * The flow takes an invoice PDF data URI as input, uses AI to extract key fields,
- * classifies charges by calling another flow, and returns the combined data.
+ * classifies charges (including tax) by calling another flow, and returns the combined data.
  *
  * @exports extractInvoiceData - A function that extracts invoice data from a PDF data URI.
  * @exports ExtractInvoiceDataInput - The input type for extractInvoiceData.
@@ -25,15 +25,15 @@ const ExtractInvoiceDataInputSchema = z.object({
 });
 export type ExtractInvoiceDataInput = z.infer<typeof ExtractInvoiceDataInputSchema>;
 
-// Define output schema: Combined extracted and classified data
+// Define output schema: Combined extracted and classified data (charges now include tax)
 const ExtractInvoiceDataOutputSchema = z.object({
   invoiceNumber: z.string().describe('The invoice number (e.g., CCLAIUP252600071).'),
   invoiceDate: z.string().describe('The invoice date (e.g., 29-Apr-2025). Format as YYYY-MM-DD if possible, otherwise use the format found.'),
   hawbNumber: z.string().describe('The HAWB number (e.g., AFRAA0079028).'),
   termsOfInvoice: z.string().describe('The terms of the invoice (e.g., CIF).'),
   jobNumber: z.string().describe('The job number (e.g., IMP/AIR/12771/04/25-26).'),
-  cargomenOwnCharges: z.number().describe('The sum of cargomen own charges.'),
-  reimbursementCharges: z.number().describe('The sum of reimbursement charges.'),
+  cargomenOwnCharges: z.number().describe('The sum of cargomen own charges, including applicable tax for each line item.'),
+  reimbursementCharges: z.number().describe('The sum of reimbursement charges, including applicable tax for each line item.'),
 });
 export type ExtractInvoiceDataOutput = z.infer<typeof ExtractInvoiceDataOutputSchema>;
 
@@ -96,12 +96,12 @@ const extractInvoiceDataFlow = ai.defineFlow<ExtractInvoiceDataInputSchema, Extr
     }
     console.log("Basic details extracted:", basicDetails);
 
-    // Step 2: Classify Charges using the classifyInvoiceCharges AI flow, passing the PDF URI
-    console.log("Classifying charges...");
+    // Step 2: Classify Charges (including tax) using the classifyInvoiceCharges AI flow
+    console.log("Classifying charges (incl. tax)...");
     const charges: ClassifyInvoiceChargesOutput = await classifyInvoiceCharges({
         invoicePdfDataUri: input.invoicePdfDataUri, // Pass the data URI
     });
-    console.log("Charges classified:", charges);
+    console.log("Charges classified (incl. tax):", charges);
 
 
     // Step 3: Combine results and return
@@ -111,11 +111,11 @@ const extractInvoiceDataFlow = ai.defineFlow<ExtractInvoiceDataInputSchema, Extr
       hawbNumber: basicDetails.hawbNumber,
       termsOfInvoice: basicDetails.termsOfInvoice,
       jobNumber: basicDetails.jobNumber,
-      cargomenOwnCharges: charges.cargomenOwnCharges,
-      reimbursementCharges: charges.reimbursementCharges,
+      cargomenOwnCharges: charges.cargomenOwnCharges, // Now includes tax
+      reimbursementCharges: charges.reimbursementCharges, // Now includes tax
     };
 
-    console.log("Combined extraction output:", combinedOutput);
+    console.log("Combined extraction output (charges incl. tax):", combinedOutput);
     return combinedOutput;
   }
 );
