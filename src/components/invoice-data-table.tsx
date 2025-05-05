@@ -60,6 +60,49 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
 
     const worksheet = XLSX.utils.json_to_sheet(dataForSheet, { header: headers });
     const workbook = XLSX.utils.book_new();
+
+    // Apply styling
+    const range = XLSX.utils.decode_range(worksheet['!ref']!);
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellref = XLSX.utils.encode_cell({ r: R, c: C });
+        if (!worksheet[cellref]) continue;
+
+        // Add border to all cells
+        if (!worksheet[cellref].s) worksheet[cellref].s = {};
+        worksheet[cellref].s.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+
+        // Make header text bold
+        if (R === 0) {
+          // Add light gray background color to headers
+          if (!worksheet[cellref].s.fill) worksheet[cellref].s.fill = {};
+          worksheet[cellref].s.fill = {
+            fgColor: { rgb: "E0E0E0" } // Light gray color
+          };
+
+          // Make header text bold
+          worksheet[cellref].s.font = { bold: true };
+        }
+
+        // Wrap text for specific columns
+        const wrapColumns = [5, 6, 8]; // Indices for Cargomen, Reimbursement, Source File (0-based)
+        if (wrapColumns.includes(C)) {
+          if (!worksheet[cellref].s.alignment) worksheet[cellref].s.alignment = {};
+          worksheet[cellref].s.alignment.wrapText = true;
+        }
+      }
+    }
+
+    // Adjust column widths (example: setting a fixed width for specific columns)
+    worksheet['!cols'] = [
+        {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 30}, {wch: 30}, {wch: 20}, {wch: 30}
+    ];
+
     XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Data");
 
     // Buffer to handle large data sets (optional but good practice)
