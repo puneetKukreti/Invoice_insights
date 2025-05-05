@@ -185,17 +185,3 @@ export function InvoiceUploader() {
 
 // Required for Dropzone with Next.js App Router
 InvoiceUploader.displayName = 'InvoiceUploader';
-```
-
-```typescript
-import { useDropzone } from 'react-dropzone';
-// ... other imports
-
-const { getRootProps, getInputProps, isDragActive } = useDropzone({
-  onDrop,
-  accept: { 'application/pdf': ['.pdf'] },
-  multiple: true,
-});
-
-// ... rest of the component
-```
