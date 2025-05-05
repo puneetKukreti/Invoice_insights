@@ -71,7 +71,7 @@ export function InvoiceUploader() {
              if (fileDataUri.startsWith('data:;base64,')) {
                 // Or handle other common incorrect types if necessary
                 // For now, assume it should be PDF
-                // fileDataUri = fileDataUri.replace('data:;base64,', 'data:application/pdf;base64,');
+                fileDataUri = fileDataUri.replace('data:;base64,', 'data:application/pdf;base64,');
                  throw new Error(`File ${file.name} has incorrect data URI prefix. Expected 'data:application/pdf;base64,'.`);
              } else {
                 throw new Error(`File ${file.name} could not be read as a valid PDF data URI.`);
