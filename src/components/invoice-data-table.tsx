@@ -31,26 +31,30 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
         console.warn("No data to export.");
         return;
     }
-    // Define the headers based on the ExtractedData type keys, excluding 'filename'
+    // Define the headers based on the ExtractedData type keys, excluding 'filename', with updated names and new Total column
     const headers = [
         "Invoice Date",
         "Invoice No",
         "HAWB No",
         "Terms of Invoice",
         "Job Number",
-        "Cargomen Own Charges (Incl. Tax)", // Updated header
-        "Reimbursement Charges (Incl. Tax)", // Updated header
+        "Cargomen Own Charges(Loading,unloading,Agency Charges,Transportation If any)", // Updated header
+        "REIMBURSEMENT Charges(Storage Charge,Do charges,Celebi ..ect)", // Updated header
+        "Total Charges (Incl. Tax)", // New header
+        "Source File",
     ];
 
-    // Map data to the desired format, ensuring order matches headers
+    // Map data to the desired format, ensuring order matches headers and including total
      const dataForSheet = dataToDisplay.map(item => ({
         "Invoice Date": item.invoiceDate,
         "Invoice No": item.invoiceNumber,
         "HAWB No": item.hawbNumber,
         "Terms of Invoice": item.termsOfInvoice,
         "Job Number": item.jobNumber,
-        "Cargomen Own Charges (Incl. Tax)": item.cargomenOwnCharges, // Match header
-        "Reimbursement Charges (Incl. Tax)": item.reimbursementCharges, // Match header
+        "Cargomen Own Charges(Loading,unloading,Agency Charges,Transportation If any)": item.cargomenOwnCharges, // Match header
+        "REIMBURSEMENT Charges(Storage Charge,Do charges,Celebi ..ect)": item.reimbursementCharges, // Match header
+        "Total Charges (Incl. Tax)": item.cargomenOwnCharges + item.reimbursementCharges, // Calculate total
+        "Source File": item.filename || 'N/A',
     }));
 
 
@@ -90,31 +94,39 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
               <TableHead>HAWB No</TableHead>
               <TableHead>Terms</TableHead>
               <TableHead>Job No</TableHead>
-              <TableHead className="text-right">Own Charges (Incl. Tax)</TableHead>
-              <TableHead className="text-right">Reimb. Charges (Incl. Tax)</TableHead>
+              {/* Updated Table Headings */}
+              <TableHead className="text-right">Cargomen Own Charges<br/>(Loading,unloading,Agency Charges,Transportation If any)</TableHead>
+              <TableHead className="text-right">REIMBURSEMENT Charges<br/>(Storage Charge,Do charges,Celebi ..ect)</TableHead>
+              <TableHead className="text-right font-bold">Total Charges<br/>(Incl. Tax)</TableHead> {/* New Total Column Header */}
               <TableHead>Source File</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {dataToDisplay.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                {/* Updated ColSpan */}
+                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                   Upload invoices to see the extracted data here.
                 </TableCell>
               </TableRow>
             ) : (
-              dataToDisplay.map((invoice, index) => (
-                <TableRow key={invoice.invoiceNumber + index}> {/* Added index for more robust key */}
-                  <TableCell>{invoice.invoiceDate}</TableCell>
-                  <TableCell>{invoice.invoiceNumber}</TableCell>
-                  <TableCell>{invoice.hawbNumber}</TableCell>
-                  <TableCell>{invoice.termsOfInvoice}</TableCell>
-                  <TableCell>{invoice.jobNumber}</TableCell>
-                  <TableCell className="text-right">{invoice.cargomenOwnCharges.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">{invoice.reimbursementCharges.toFixed(2)}</TableCell>
-                   <TableCell className="text-xs text-muted-foreground truncate max-w-[150px]">{invoice.filename || 'N/A'}</TableCell>
-                </TableRow>
-              ))
+              dataToDisplay.map((invoice, index) => {
+                const totalCharges = invoice.cargomenOwnCharges + invoice.reimbursementCharges;
+                return (
+                    <TableRow key={invoice.invoiceNumber + index}> {/* Added index for more robust key */}
+                    <TableCell>{invoice.invoiceDate}</TableCell>
+                    <TableCell>{invoice.invoiceNumber}</TableCell>
+                    <TableCell>{invoice.hawbNumber}</TableCell>
+                    <TableCell>{invoice.termsOfInvoice}</TableCell>
+                    <TableCell>{invoice.jobNumber}</TableCell>
+                    <TableCell className="text-right">{invoice.cargomenOwnCharges.toFixed(2)}</TableCell>
+                    <TableCell className="text-right">{invoice.reimbursementCharges.toFixed(2)}</TableCell>
+                    {/* New Total Column Data */}
+                    <TableCell className="text-right font-bold">{totalCharges.toFixed(2)}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground truncate max-w-[150px]">{invoice.filename || 'N/A'}</TableCell>
+                    </TableRow>
+                );
+              })
             )}
           </TableBody>
         </Table>
