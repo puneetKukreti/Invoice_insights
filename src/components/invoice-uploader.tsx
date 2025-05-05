@@ -62,7 +62,7 @@ export function InvoiceUploader() {
       for (const file of files) {
         try {
           console.log(`Processing file: ${file.name}`);
-          const fileDataUri = await readFileAsDataURL(file);
+          let fileDataUri = await readFileAsDataURL(file);
 
           // Ensure the Data URI has the correct MIME type prefix for PDF
           if (!fileDataUri.startsWith('data:application/pdf;base64,')) {
