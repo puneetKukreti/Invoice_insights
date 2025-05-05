@@ -8,7 +8,8 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UploadCloud, FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { extractInvoiceData } from '@/ai/flows/extract-invoice-data'; // Assuming AI flow exists
+import { extractInvoiceData } from '@/ai/flows/extract-invoice-data'; // Import the consolidated AI flow
+import { readFileAsDataURL } from '@/services/invoice-parser'; // Import the helper
 import { useInvoiceData } from '@/context/invoice-data-context'; // Import context hook
 import type { ExtractedData } from '@/types/invoice'; // Import the type
 
@@ -25,24 +26,23 @@ export function InvoiceUploader() {
     const pdfFiles = acceptedFiles.filter(file => file.type === 'application/pdf');
     if (pdfFiles.length !== acceptedFiles.length) {
        setError("Only PDF files are accepted.");
+       // Optionally filter out non-PDFs or keep only PDFs
+       // setFiles(prevFiles => [...prevFiles, ...pdfFiles]);
+       // For now, we accept them all and let the loop handle potential issues if needed,
+       // but it's cleaner to only add PDFs. Let's refine this:
+       const newValidFiles = pdfFiles.filter(pdfFile => !files.some(existingFile => existingFile.name === pdfFile.name));
+       setFiles(prevFiles => [...prevFiles, ...newValidFiles]);
+    } else {
+       const newValidFiles = acceptedFiles.filter(file => !files.some(existingFile => existingFile.name === file.name));
+       setFiles(prevFiles => [...prevFiles, ...newValidFiles]);
     }
-    setFiles(prevFiles => [...prevFiles, ...pdfFiles]);
-  }, []);
+  }, [files]); // Added files dependency to prevent duplicates in the same drop
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: { 'application/pdf': ['.pdf'] },
     multiple: true,
   });
-
-   const readFileAsDataURL = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-      reader.readAsDataURL(file);
-    });
-  };
 
   const handleUpload = () => {
     if (files.length === 0) {
@@ -57,53 +57,95 @@ export function InvoiceUploader() {
       const totalFiles = files.length;
       let processedFiles = 0;
       const allExtractedData: ExtractedData[] = [];
+      let processingErrorOccurred = false;
 
       for (const file of files) {
         try {
+          console.log(`Processing file: ${file.name}`);
           const fileDataUri = await readFileAsDataURL(file);
+
+          // Ensure the Data URI has the correct MIME type prefix for PDF
+          if (!fileDataUri.startsWith('data:application/pdf;base64,')) {
+             console.warn(`File ${file.name} did not read as PDF data URI, attempting to fix.`);
+             // Attempt to fix if it's just missing the prefix but looks like base64
+             if (fileDataUri.startsWith('data:;base64,')) {
+                // Or handle other common incorrect types if necessary
+                // For now, assume it should be PDF
+                // fileDataUri = fileDataUri.replace('data:;base64,', 'data:application/pdf;base64,');
+                 throw new Error(`File ${file.name} has incorrect data URI prefix. Expected 'data:application/pdf;base64,'.`);
+             } else {
+                throw new Error(`File ${file.name} could not be read as a valid PDF data URI.`);
+             }
+          }
+
+
+          console.log(`Calling AI flow for ${file.name}...`);
           const extractedData = await extractInvoiceData({ invoicePdfDataUri: fileDataUri });
 
           if (extractedData) {
-              // Add filename to the extracted data
+              console.log(`Successfully extracted data for ${file.name}:`, extractedData);
+             // Add filename to the extracted data
              const dataWithFilename: ExtractedData = {
                ...extractedData,
                filename: file.name, // Add the filename here
              };
             allExtractedData.push(dataWithFilename);
           } else {
-            throw new Error(`Failed to extract data from ${file.name}. AI response was empty.`);
+             // This case might not happen if the flow throws an error, but good to keep
+            throw new Error(`AI flow returned empty response for ${file.name}.`);
           }
 
-          processedFiles++;
-          setProgress(Math.round((processedFiles / totalFiles) * 100));
-
         } catch (err) {
+           processingErrorOccurred = true;
            console.error(`Error processing file ${file.name}:`, err);
-           setError(`Error processing ${file.name}. Please check the console for details.`);
+           const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
+           setError(`Error processing ${file.name}: ${errorMessage}. Please check the file or try again.`);
            toast({
              title: `Error processing ${file.name}`,
-             description: err instanceof Error ? err.message : "An unknown error occurred.",
+             description: errorMessage,
              variant: "destructive",
            });
-           setProgress(null); // Stop progress on error
-           return; // Stop processing further files on error
+           // Stop processing further files on error? Or continue? Let's continue for now.
+           // If stopping:
+           // setProgress(null); // Stop progress indication
+           // return;
+        } finally {
+            processedFiles++;
+            // Update progress even if there was an error for this file
+            setProgress(Math.round((processedFiles / totalFiles) * 100));
         }
       }
 
-      // Add all extracted data to the context at once
-      addInvoiceData(allExtractedData);
+      // Add successfully extracted data to the context
+      if (allExtractedData.length > 0) {
+         addInvoiceData(allExtractedData);
+      }
 
-      toast({
-        title: "Processing Complete",
-        description: `${totalFiles} invoice(s) processed successfully.`,
-      });
-      setFiles([]); // Clear files after successful upload and processing
-      setProgress(null); // Reset progress
+      setProgress(null); // Reset progress meter
+
+      if (!processingErrorOccurred) {
+          toast({
+            title: "Processing Complete",
+            description: `${totalFiles} invoice(s) processed successfully.`,
+          });
+          setFiles([]); // Clear files only if all processed successfully
+      } else {
+          toast({
+              title: "Processing Finished with Errors",
+              description: `Processed ${totalFiles} file(s). ${allExtractedData.length} succeeded, ${totalFiles - allExtractedData.length} failed. Please review errors.`,
+              variant: "destructive",
+          });
+          // Keep failed files in the list? Or remove successful ones?
+          // Let's remove the successfully processed ones.
+          const successfulFilenames = new Set(allExtractedData.map(d => d.filename));
+          setFiles(currentFiles => currentFiles.filter(f => !successfulFilenames.has(f.name)));
+      }
     });
   };
 
   const removeFile = (fileName: string) => {
     setFiles(files.filter(file => file.name !== fileName));
+     if (files.length === 1) setError(null); // Clear error if last file removed
   };
 
   return (
@@ -122,20 +164,20 @@ export function InvoiceUploader() {
             Drag & drop Cargomen invoice PDFs here, or click to select files
           </p>
         )}
-        <p className="text-sm text-muted-foreground mt-2">(Multiple files accepted)</p>
+        <p className="text-sm text-muted-foreground mt-2">(Multiple PDF files accepted)</p>
       </div>
 
       {files.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-md font-medium">Selected Files:</h4>
-          <ul className="list-disc list-inside space-y-1 max-h-40 overflow-y-auto p-2 border rounded-md">
+          <ul className="list-disc list-inside space-y-1 max-h-40 overflow-y-auto p-2 border rounded-md bg-muted/50">
             {files.map((file, index) => (
-              <li key={index} className="text-sm flex justify-between items-center group">
-                <span className="truncate mr-2">{file.name}</span>
+              <li key={`${file.name}-${index}`} className="text-sm flex justify-between items-center group">
+                <span className="truncate mr-2 flex-1">{file.name}</span>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="opacity-0 group-hover:opacity-100 text-destructive hover:text-destructive"
+                  className="opacity-50 group-hover:opacity-100 text-destructive hover:text-destructive px-1 h-6"
                   onClick={(e) => { e.stopPropagation(); removeFile(file.name); }}
                   aria-label={`Remove ${file.name}`}
                 >
@@ -156,8 +198,8 @@ export function InvoiceUploader() {
       )}
 
       {progress !== null && (
-        <div className="space-y-2">
-           <Progress value={progress} className="w-full" />
+        <div className="space-y-2 pt-2">
+           <Progress value={progress} className="w-full h-2" />
            <p className="text-sm text-center text-muted-foreground">Processing... {progress}%</p>
         </div>
       )}
@@ -166,16 +208,17 @@ export function InvoiceUploader() {
         onClick={handleUpload}
         disabled={isPending || files.length === 0}
         className="w-full"
+        size="lg"
       >
         {isPending ? (
           <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Processing...
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+            Processing Invoices...
           </>
         ) : (
           <>
-            <FileCheck className="mr-2 h-4 w-4" />
-            Analyze Invoices
+            <FileCheck className="mr-2 h-5 w-5" />
+            Analyze {files.length || ''} {files.length === 1 ? 'Invoice' : 'Invoices'}
           </>
         )}
       </Button>
