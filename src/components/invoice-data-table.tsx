@@ -111,16 +111,16 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
               dataToDisplay.map((invoice, index) => {
                 const totalCharges = invoice.cargomenOwnCharges + invoice.reimbursementCharges;
                 return (
-                    <TableRow key={`${invoice.invoiceNumber}-${invoice.filename || index}`}> {/* More robust key */}
-                    <TableCell>{invoice.invoiceDate}</TableCell>
-                    <TableCell>{invoice.invoiceNumber}</TableCell>
-                    <TableCell>{invoice.hawbNumber}</TableCell> {/* Data comes from hawbNumber field */}
-                    <TableCell>{invoice.termsOfInvoice}</TableCell>
-                    <TableCell>{invoice.jobNumber}</TableCell>
-                    <TableCell className="text-right">{invoice.cargomenOwnCharges.toFixed(2)}</TableCell>
-                    <TableCell className="text-right">{invoice.reimbursementCharges.toFixed(2)}</TableCell>
-                    <TableCell className="text-right font-bold">{totalCharges.toFixed(2)}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground truncate max-w-[150px]">{invoice.filename || 'N/A'}</TableCell>
+                    <TableRow key={`${invoice.invoiceNumber}-${invoice.filename || index}`}>
+                      <TableCell>{invoice.invoiceDate}</TableCell>
+                      <TableCell>{invoice.invoiceNumber}</TableCell>
+                      <TableCell>{invoice.hawbNumber}</TableCell> {/* Data comes from hawbNumber field */}
+                      <TableCell>{invoice.termsOfInvoice}</TableCell>
+                      <TableCell>{invoice.jobNumber}</TableCell>
+                      <TableCell className="text-right">{invoice.cargomenOwnCharges.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">{invoice.reimbursementCharges.toFixed(2)}</TableCell>
+                      <TableCell className="text-right font-bold">{totalCharges.toFixed(2)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground truncate max-w-[150px]">{invoice.filename || 'N/A'}</TableCell>
                     </TableRow>
                 );
               })
