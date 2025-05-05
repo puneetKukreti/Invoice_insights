@@ -35,12 +35,12 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
     const headers = [
         "Invoice Date",
         "Invoice No",
-        "HAWB No",
+        "AWB/BL No", // Updated header
         "Terms of Invoice",
         "Job Number",
-        "Cargomen Own Charges(Loading,unloading,Agency Charges,Transportation If any)", // Updated header
-        "REIMBURSEMENT Charges(Storage Charge,Do charges,Celebi ..ect)", // Updated header
-        "Total Charges (Incl. Tax)", // New header
+        "Cargomen Own Charges(Loading,unloading,Agency Charges,Transportation If any)",
+        "REIMBURSEMENT Charges(Storage Charge,Do charges,Celebi ..ect)",
+        "Total Charges (Incl. Tax)",
         "Source File",
     ];
 
@@ -48,11 +48,11 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
      const dataForSheet = dataToDisplay.map(item => ({
         "Invoice Date": item.invoiceDate,
         "Invoice No": item.invoiceNumber,
-        "HAWB No": item.hawbNumber,
+        "AWB/BL No": item.hawbNumber, // Updated key reference (though variable name is still hawbNumber)
         "Terms of Invoice": item.termsOfInvoice,
         "Job Number": item.jobNumber,
-        "Cargomen Own Charges(Loading,unloading,Agency Charges,Transportation If any)": item.cargomenOwnCharges, // Match header
-        "REIMBURSEMENT Charges(Storage Charge,Do charges,Celebi ..ect)": item.reimbursementCharges, // Match header
+        "Cargomen Own Charges(Loading,unloading,Agency Charges,Transportation If any)": item.cargomenOwnCharges,
+        "REIMBURSEMENT Charges(Storage Charge,Do charges,Celebi ..ect)": item.reimbursementCharges,
         "Total Charges (Incl. Tax)": item.cargomenOwnCharges + item.reimbursementCharges, // Calculate total
         "Source File": item.filename || 'N/A',
     }));
@@ -91,20 +91,18 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
             <TableRow>
               <TableHead>Invoice Date</TableHead>
               <TableHead>Invoice No</TableHead>
-              <TableHead>HAWB No</TableHead>
+              <TableHead>AWB/BL No</TableHead> {/* Updated Table Header */}
               <TableHead>Terms</TableHead>
               <TableHead>Job No</TableHead>
-              {/* Updated Table Headings */}
               <TableHead className="text-right">Cargomen Own Charges<br/>(Loading,unloading,Agency Charges,Transportation If any)</TableHead>
               <TableHead className="text-right">REIMBURSEMENT Charges<br/>(Storage Charge,Do charges,Celebi ..ect)</TableHead>
-              <TableHead className="text-right font-bold">Total Charges<br/>(Incl. Tax)</TableHead> {/* New Total Column Header */}
+              <TableHead className="text-right font-bold">Total Charges<br/>(Incl. Tax)</TableHead>
               <TableHead>Source File</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {dataToDisplay.length === 0 ? (
               <TableRow>
-                {/* Updated ColSpan */}
                 <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                   Upload invoices to see the extracted data here.
                 </TableCell>
@@ -113,15 +111,14 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
               dataToDisplay.map((invoice, index) => {
                 const totalCharges = invoice.cargomenOwnCharges + invoice.reimbursementCharges;
                 return (
-                    <TableRow key={invoice.invoiceNumber + index}> {/* Added index for more robust key */}
+                    <TableRow key={`${invoice.invoiceNumber}-${invoice.filename || index}`}> {/* More robust key */}
                     <TableCell>{invoice.invoiceDate}</TableCell>
                     <TableCell>{invoice.invoiceNumber}</TableCell>
-                    <TableCell>{invoice.hawbNumber}</TableCell>
+                    <TableCell>{invoice.hawbNumber}</TableCell> {/* Data comes from hawbNumber field */}
                     <TableCell>{invoice.termsOfInvoice}</TableCell>
                     <TableCell>{invoice.jobNumber}</TableCell>
                     <TableCell className="text-right">{invoice.cargomenOwnCharges.toFixed(2)}</TableCell>
                     <TableCell className="text-right">{invoice.reimbursementCharges.toFixed(2)}</TableCell>
-                    {/* New Total Column Data */}
                     <TableCell className="text-right font-bold">{totalCharges.toFixed(2)}</TableCell>
                     <TableCell className="text-xs text-muted-foreground truncate max-w-[150px]">{invoice.filename || 'N/A'}</TableCell>
                     </TableRow>

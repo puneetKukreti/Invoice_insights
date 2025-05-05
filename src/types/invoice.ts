@@ -8,7 +8,7 @@ export interface ExtractedData {
   invoiceDate: string;
   /** The unique identifier for the invoice. */
   invoiceNumber: string;
-  /** The House Air Waybill number associated with the shipment. */
+  /** The primary shipment reference number (HAWB, HBL, MAWB, or MBL). */
   hawbNumber: string;
   /** The payment terms specified on the invoice. */
   termsOfInvoice: string;
@@ -21,3 +21,5 @@ export interface ExtractedData {
   /** The name of the original PDF file from which the data was extracted. */
   filename?: string; // Optional filename property
 }
+
+```

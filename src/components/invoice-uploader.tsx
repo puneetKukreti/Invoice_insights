@@ -80,16 +80,17 @@ export function InvoiceUploader() {
 
 
           console.log(`Calling AI flow for ${file.name}...`);
-          const extractedData = await extractInvoiceData({ invoicePdfDataUri: fileDataUri });
+          // Pass both data URI and filename to the flow wrapper
+          const extractedData = await extractInvoiceData({
+             invoicePdfDataUri: fileDataUri,
+             filename: file.name // Pass filename here
+          });
+
 
           if (extractedData) {
               console.log(`Successfully extracted data for ${file.name}:`, extractedData);
-             // Add filename to the extracted data
-             const dataWithFilename: ExtractedData = {
-               ...extractedData,
-               filename: file.name, // Add the filename here
-             };
-            allExtractedData.push(dataWithFilename);
+             // Filename is now handled within the extractInvoiceData function/flow
+            allExtractedData.push(extractedData);
           } else {
              // This case might not happen if the flow throws an error, but good to keep
             throw new Error(`AI flow returned empty response for ${file.name}.`);
@@ -137,8 +138,9 @@ export function InvoiceUploader() {
           });
           // Keep failed files in the list? Or remove successful ones?
           // Let's remove the successfully processed ones.
-          const successfulFilenames = new Set(allExtractedData.map(d => d.filename));
+          const successfulFilenames = new Set(allExtractedData.map(d => d.filename).filter((name): name is string => !!name));
           setFiles(currentFiles => currentFiles.filter(f => !successfulFilenames.has(f.name)));
+
       }
     });
   };
