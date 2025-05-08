@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InvoiceUploader } from "@/components/invoice-uploader";
 import { InvoiceDataTable } from "@/components/invoice-data-table";
-import { QuotationUploader } from "@/components/quotation-uploader"; // Import QuotationUploader
+// import { QuotationUploader } from "@/components/quotation-uploader"; // Removed
 import { Separator } from "@/components/ui/separator";
 
 export default function Home() {
@@ -12,13 +12,13 @@ export default function Home() {
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold text-primary">Invoice Insights</CardTitle>
           <CardDescription className="text-muted-foreground">
-            Upload Cargomen invoice PDFs to extract data and compare with your quotation.
+            Upload Cargomen invoice PDFs to extract data and compare with the standard quotation.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-6"> {/* Changed to single column for InvoiceUploader */}
             <InvoiceUploader />
-            <QuotationUploader />
+            {/* <QuotationUploader /> Removed */}
           </div>
           <Separator />
           <InvoiceDataTable />
