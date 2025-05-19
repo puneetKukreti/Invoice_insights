@@ -1,3 +1,4 @@
+
 // src/ai/flows/classify-invoice-charges.ts
 'use server';
 
@@ -45,10 +46,10 @@ const classifyInvoiceChargesPrompt = ai.definePrompt({
   output: {
     schema: ClassifyInvoiceChargesOutputSchema,
   },
-  prompt: `You are an expert invoice processing specialist for Cargomen. Your task is to meticulously analyze the charge breakdown section (usually a table with columns like 'Description', 'Taxable Value', 'IGST', 'Total (INR)') found **ONLY ON THE FIRST PAGE** of the provided invoice document. Ignore all subsequent pages. You need to classify each individual charge line item found on the first page into specific categories based on its description, and then sum the values **ONLY** from the **"Total (INR)"** column for each category according to these VERY SPECIFIC rules:
+  prompt: `You are an expert invoice processing specialist for Cargomen. Your task is to meticulously analyze the charge breakdown section (usually a table with columns like 'Description', 'Taxable Value', 'IGST', 'Total (INR)') found **ONLY ON THE FIRST PAGE** of the provided invoice document. Ignore all subsequent pages. You need to classify each individual charge line item found on the first page into specific categories, and then sum the values **ONLY** from the **"Total (INR)"** column for each category according to these VERY SPECIFIC rules:
 
   **Charge Categories & Definitions (Values taken from "Total (INR)" column on FIRST PAGE ONLY):**
-  1.  **Service Charges**: Sum the amounts from the "Total (INR)" column for line items with descriptions EXACTLY matching (case-insensitive, allow for pluralization) "SERVICE CHARGES" or "AGENCY SERVICE CHARGES". Output this sum as \`serviceCharges\`.
+  1.  **Service Charges**: Sum the amounts from the "Total (INR)" column for line items with descriptions EXACTLY matching (case-insensitive, allow for pluralization like "CHARGE" vs "CHARGES") "SERVICE CHARGES" or "AGENCY SERVICE CHARGES". Output this sum as \`serviceCharges\`.
   2.  **Loading & Unloading Charges**: Sum the amounts from the "Total (INR)" column for line items with descriptions EXACTLY matching (case-insensitive, allow for pluralization) "LOADING & UNLOADING CHARGES". Output this sum as \`loadingUnloadingCharges\`.
   3.  **Transportation Charges**: Sum the amounts from the "Total (INR)" column for line items with descriptions EXACTLY matching (case-insensitive, allow for pluralization) "TRANSPORTATION" or "CARTAGE CHARGES". Output this sum as \`transportationCharges\`.
   4.  **Reimbursement Charges**: These are ALL OTHER costs listed as individual line items in the charge breakdown section on the **first page** that are NOT one of the three specific charges listed above (Service, Loading/Unloading, Transportation). Sum the amounts from the "Total (INR)" column for these items. Output this sum as \`reimbursementCharges\`. This includes, but is not limited to:
@@ -66,14 +67,16 @@ const classifyInvoiceChargesPrompt = ai.definePrompt({
       *   Any other third-party vendor charges clearly indicated as passed through (e.g., specific vendor names mentioned in the description).
 
   **Instructions:**
-  Analyze **ONLY THE FIRST PAGE** of the following invoice document **extremely carefully**. Go line by line through the charges listed (usually in a table format) on that first page.
+  You must process **ONLY THE FIRST PAGE** of the provided invoice.
+  Your goal is to categorize every charge line item found in the charge breakdown table on the first page and sum their **"Total (INR)"** values into the correct output fields.
 
-  *   For each line item on the first page:
-      *   Examine its description.
-      *   If the description EXACTLY matches "SERVICE CHARGES" or "AGENCY SERVICE CHARGES" (case-insensitive, allowing pluralization), add its corresponding **Total (INR)** amount to the \`serviceCharges\` sum.
-      *   If the description EXACTLY matches "LOADING & UNLOADING CHARGES" (case-insensitive, allowing pluralization), add its corresponding **Total (INR)** amount to the \`loadingUnloadingCharges\` sum.
-      *   If the description EXACTLY matches "TRANSPORTATION" or "CARTAGE CHARGES" (case-insensitive, allowing pluralization), add its corresponding **Total (INR)** amount to the \`transportationCharges\` sum.
-      *   If the line item description does NOT match any of the above three specific phrases, add its corresponding **Total (INR)** amount to the \`reimbursementCharges\` sum.
+  Follow this classification logic for each line item on the first page:
+  1.  **Service Charges Check**: If the line item description EXACTLY matches (case-insensitive, allowing for pluralization like "CHARGE" vs "CHARGES") "SERVICE CHARGES" or "AGENCY SERVICE CHARGES", add its "Total (INR)" amount to the \`serviceCharges\` sum.
+  2.  **Loading & Unloading Charges Check**: Else, if the line item description EXACTLY matches (case-insensitive, allowing for pluralization) "LOADING & UNLOADING CHARGES", add its "Total (INR)" amount to the \`loadingUnloadingCharges\` sum.
+  3.  **Transportation Charges Check**: Else, if the line item description EXACTLY matches (case-insensitive, allowing for pluralization) "TRANSPORTATION" or "CARTAGE CHARGES", add its "Total (INR)" amount to the \`transportationCharges\` sum.
+  4.  **Reimbursement Charges (Default)**: Else (i.e., if the description does not match any of the specific phrases above), it is a Reimbursement Charge. Add its "Total (INR)" amount to the \`reimbursementCharges\` sum. This category is for all other charges on the first page, such as "DELHICARGOSERVICE-CUSTODIAN CHARGES", "AAI charges", "DO Charges", etc., as listed in the "Reimbursement Charges" definition earlier.
+
+  Ensure every line item in the charge breakdown table on the first page is considered and its "Total (INR)" value is allocated to one, and only one, of the four output charge categories.
 
   **CRITICAL:**
   *   **PROCESS ONLY THE FIRST PAGE.** Ignore all data and charges on subsequent pages.
@@ -81,13 +84,13 @@ const classifyInvoiceChargesPrompt = ai.definePrompt({
   *   **Example (based on first page data only):** If the first page shows:
       *   SERVICE CHARGES | ... | 4500.00 | ... | 810.00 | **5310.00**
       *   LOADING & UNLOADING CHARGES | ... | 500.00 | ... | 90.00 | **590.00**
-      *   CCL-T-CFS CHARGES | ... | 1284.74 | ... | 231.26 | **1516.00**
+      *   DELHICARGOSERVICE-CUSTODIAN CHARGES | ... | 1000.00 | ... | 180.00 | **1180.00**
       *   TRANSPORTATION | ... | 5500.00 | ... | 660.00 | **6160.00**
       Then:
       *   \`serviceCharges\` = 5310.00
       *   \`loadingUnloadingCharges\` = 590.00
       *   \`transportationCharges\` = 6160.00
-      *   \`reimbursementCharges\` = 1516.00
+      *   \`reimbursementCharges\` = 1180.00 (because "DELHICARGOSERVICE-CUSTODIAN CHARGES" does not exactly match the other three categories)
   *   **DO NOT include the overall invoice subtotal, total tax, or grand total.** Only sum the values found in the **"Total (INR)"** column within the charge breakdown table itself for individual line items **on the first page**.
   *   Be precise. Only the three explicitly mentioned descriptions (Service, Loading/Unloading, Transportation) are broken out. Everything else listed as a distinct charge line item on the first page is a 'Reimbursement Charge'.
   *   Double-check your classifications against the strict rules above and ensure your arithmetic sums using ONLY the **"Total (INR)"** values from the first page are accurate.
@@ -97,7 +100,7 @@ const classifyInvoiceChargesPrompt = ai.definePrompt({
   Invoice Document (Analyze First Page Only):
   {{media url=invoicePdfDataUri maxPages=1}}
 
-  Provide the final *total sum* for \`serviceCharges\`, \`loadingUnloadingCharges\`, \`transportationCharges\`, and \`reimbursementCharges\` (all derived strictly from the "Total (INR)" column on the first page) as a JSON object matching the output schema. Example based on the values above: {"serviceCharges": 5310.00, "loadingUnloadingCharges": 590.00, "transportationCharges": 6160.00, "reimbursementCharges": 1516.00}
+  Provide the final *total sum* for \`serviceCharges\`, \`loadingUnloadingCharges\`, \`transportationCharges\`, and \`reimbursementCharges\` (all derived strictly from the "Total (INR)" column on the first page) as a JSON object matching the output schema.
   `,
 });
 
@@ -149,3 +152,5 @@ const classifyInvoiceChargesFlow = ai.defineFlow<
     };
   }
 );
+
+    
