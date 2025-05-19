@@ -1,7 +1,8 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { InvoiceUploader } from "@/components/invoice-uploader";
-import { InvoiceDataTable } from "@/components/invoice-data-table";
-import { ExtractedData } from "@/types/invoice";
+import type { ExtractedData } from "@/types/invoice";
+import { DynamicInvoiceDataTable } from "@/components/dynamic-invoice-data-table"; // Import the new client component
 
 export default function Home() {
   const initialData: ExtractedData[] = []; // Placeholder for actual data fetching or state management
@@ -17,7 +18,7 @@ export default function Home() {
         </CardHeader>
         <CardContent className="space-y-8">
           <InvoiceUploader />
-          <InvoiceDataTable initialData={initialData} />
+          <DynamicInvoiceDataTable initialData={initialData} />
         </CardContent>
       </Card>
     </main>
