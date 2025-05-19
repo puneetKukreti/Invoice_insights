@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+// import * as XLSX from 'xlsx'; // Removed direct import
 import { useInvoiceData } from '@/context/invoice-data-context';
 import type { ExtractedData } from '@/types/invoice';
 
@@ -25,11 +25,14 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
 
   const dataToDisplay = invoiceData.length > 0 ? invoiceData : initialData;
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (dataToDisplay.length === 0) {
         console.warn("No data to export.");
         return;
     }
+
+    const XLSX = await import('xlsx'); // Dynamically import xlsx
+
     const headers = [
         "Invoice Date",
         "Invoice No",
@@ -39,7 +42,7 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
         "Service Charges (Incl. Tax)",
         "L&U Charges (Incl. Tax)",
         "Transport Charges (Incl. Tax)",
-        "Reimbursement Charges (Incl. Tax)",
+        "Reimbursement Charges (Storage, DO, Celebi etc.) (Incl. Tax)",
         "Total Charges (Incl. Tax)",
         "Source File",
     ];
@@ -53,7 +56,7 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
         "Service Charges (Incl. Tax)": item.serviceCharges,
         "L&U Charges (Incl. Tax)": item.loadingUnloadingCharges,
         "Transport Charges (Incl. Tax)": item.transportationCharges,
-        "Reimbursement Charges (Incl. Tax)": item.reimbursementCharges,
+        "Reimbursement Charges (Storage, DO, Celebi etc.) (Incl. Tax)": item.reimbursementCharges,
         "Total Charges (Incl. Tax)": item.serviceCharges + item.loadingUnloadingCharges + item.transportationCharges + item.reimbursementCharges,
         "Source File": item.filename || 'N/A',
     }));
@@ -76,14 +79,14 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
           right: { style: "thin" },
         };
 
-        if (R === 0) {
+        if (R === 0) { // Header row
           if (!worksheet[cellref].s.fill) worksheet[cellref].s.fill = {};
           worksheet[cellref].s.fill = {
-            fgColor: { rgb: "E0E0E0" }
+            fgColor: { rgb: "E0E0E0" } // Light gray background for headers
           };
           worksheet[cellref].s.font = { bold: true };
         }
-
+        
         // Wrap text for Reimbursement Charges and Source File columns
         const wrapColumns = [8, 10]; // Indices for Reimbursement Charges, Source File
         if (wrapColumns.includes(C)) {
@@ -92,14 +95,22 @@ export function InvoiceDataTable({ initialData = [] }: InvoiceDataTableProps) {
         }
       }
     }
-
+    
+    // Set column widths
     worksheet['!cols'] = [
-        {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, {wch: 15}, // Date, Inv No, AWB, Terms, Job No
-        {wch: 20}, {wch: 20}, {wch: 20}, // Service, L&U, Transport
-        {wch: 30}, // Reimbursement
-        {wch: 20}, // Total
+        {wch: 15}, // Invoice Date
+        {wch: 20}, // Invoice No
+        {wch: 20}, // AWB/BL No
+        {wch: 15}, // Terms of Invoice
+        {wch: 25}, // Job Number
+        {wch: 20}, // Service Charges
+        {wch: 20}, // L&U Charges
+        {wch: 20}, // Transport Charges
+        {wch: 35}, // Reimbursement Charges
+        {wch: 20}, // Total Charges
         {wch: 30}  // Source File
     ];
+
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Invoice Data");
     XLSX.writeFile(workbook, "InvoiceInsights_Export.xlsx");
